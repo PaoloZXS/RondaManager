@@ -1,0 +1,29 @@
+# Flutter
+mobile/.dart_tool/
+mobile/.packages
+mobile/build/
+mobile/.flutter-plugins
+mobile/.flutter-plugins-dependencies
+mobile/pubspec.lock
+mobile/.env
+
+# Node / React
+web/node_modules/
+web/.next/
+web/dist/
+web/build/
+web/.env.local
+web/.env
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Supabase credentials
+.env
+.env.local

@@ -1,0 +1,57 @@
+name: ronda_manager
+description: App mobile per la gestione di ronde notturne con NFC e crittografia.
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # NFC
+  flutter_nfc_kit: ^3.4.0
+
+  # Database locale
+  sqflite: ^2.3.0
+  path_provider: ^2.1.0
+  path: ^1.8.0
+
+  # Keystore / Secure storage
+  flutter_secure_storage: ^9.0.0
+
+  # Crittografia
+  crypto: ^3.0.3
+  cryptography: ^2.7.0
+  pointycastle: ^3.7.0
+
+  # Batteria
+  battery_plus: ^6.0.0
+
+  # Supabase
+  supabase_flutter: ^2.0.0
+
+  # GPS
+
+  # Stato
+  provider: ^6.1.0
+
+  # Foto
+  image_picker: ^1.0.0
+
+  # Utilità
+  intl: ^0.18.0
+  uuid: ^4.2.0
+  connectivity_plus: ^6.0.0
+  permission_handler: ^11.1.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/

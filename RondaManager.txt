@@ -1,0 +1,8 @@
+SUPABASE "ZERATUL"
+
+Project Name : RondaManager
+Database password : RondaManager2026
+
+Annon public : eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNpeGNzbGFnZmtvdWp5dmVwaG11Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQyNTgyODQsImV4cCI6MjA5OTgzNDI4NH0.tZqUb5URJslrpdYrzdL9ct9M-xl9qFjcqp37U3Hx4zw
+
+link : https://sixcslagfkoujyvephmu.supabase.co
