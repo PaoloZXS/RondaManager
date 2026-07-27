@@ -49,7 +49,7 @@ export default function SediPage() {
       onConfirm: async () => {
         const supabase = getSupabaseClient();
         await supabase.from('sedi').delete().eq('id', id);
-        caricaDati();
+        caricaSedi();
       },
     });
   }
