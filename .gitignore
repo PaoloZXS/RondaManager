@@ -2,10 +2,17 @@
 mobile/.dart_tool/
 mobile/.packages
 mobile/build/
+mobile/**/build/
 mobile/.flutter-plugins
 mobile/.flutter-plugins-dependencies
 mobile/pubspec.lock
 mobile/.env
+mobile/android/.gradle/
+mobile/android/local.properties
+mobile/android/key.properties
+mobile/android/gradlew
+mobile/android/gradlew.bat
+mobile/android/gradle-wrapper.jar
 
 # Node / React
 web/node_modules/
@@ -23,6 +30,9 @@ web/.env
 # OS
 .DS_Store
 Thumbs.db
+
+# APK
+*.apk
 
 # Supabase credentials
 .env
