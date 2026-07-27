@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { getSupabaseClient } from '../services/supabase';
 import type { Percorso, PuntoControllo, PuntoSequenza, Sede } from '../types';
+import { showConfirm } from '../components/ConfirmDialog';
+import { showAlert } from '../components/AlertToast';
 
 export default function PercorsiPage() {
   const [percorsi, setPercorsi] = useState<(Percorso & { sede_nome?: string })[]>([]);
@@ -69,7 +71,7 @@ export default function PercorsiPage() {
   }
 
   async function salvaPercorso() {
-    if (!form.id_sede) { alert('Seleziona una sede'); return; }
+    if (!form.id_sede) { showAlert({ message: 'Seleziona una sede' }); return; }
     const supabase = getSupabaseClient();
     const percorsoId = editingId || crypto.randomUUID();
     const payload = { id: percorsoId, nome: form.nome, sequenza_punti: form.sequenza_punti, id_sede: form.id_sede };
@@ -123,11 +125,12 @@ export default function PercorsiPage() {
   }
 
   async function elimina(id: string) {
-    if (!confirm('Eliminare questo percorso?')) return;
-    const supabase = getSupabaseClient();
-    await supabase.from('telefoni_percorsi').delete().eq('id_percorso', id);
-    await supabase.from('percorsi').delete().eq('id', id);
-    caricaDati();
+    showConfirm({ message: 'Eliminare questo percorso?', confirmText: 'Elimina', onConfirm: async () => {
+      const supabase = getSupabaseClient();
+      await supabase.from('telefoni_percorsi').delete().eq('id_percorso', id);
+      await supabase.from('percorsi').delete().eq('id', id);
+      caricaDati();
+    } });
   }
 
   function formattaTempo(minuti: number): string {

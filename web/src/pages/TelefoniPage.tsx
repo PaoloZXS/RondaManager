@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { getSupabaseClient, setTelefonoBloccato } from '../services/supabase';
 import type { Sede, Percorso } from '../types';
+import { showConfirm } from '../components/ConfirmDialog';
+import { showAlert } from '../components/AlertToast';
 
 export default function TelefoniPage() {
   const [telefoni, setTelefoni] = useState<any[]>([]);
@@ -61,7 +63,7 @@ export default function TelefoniPage() {
 
   async function salvaTelefono() {
     if (!form.id.trim()) return;
-    if (!form.id_sede) { alert('Seleziona una sede'); return; }
+    if (!form.id_sede) { showAlert({ message: 'Seleziona una sede' }); return; }
     const supabase = getSupabaseClient();
     const payload = { id: form.id.trim(), nome: form.nome.trim() || form.id.trim(), id_sede: form.id_sede, bloccato: false, note: '' };
 
@@ -94,12 +96,13 @@ export default function TelefoniPage() {
   }
 
   async function elimina(id: string) {
-    if (!confirm('Eliminare questo telefono?')) return;
-    const supabase = getSupabaseClient();
-    await supabase.from('guardie_telefoni').delete().eq('id_telefono', id);
-    await supabase.from('telefoni_percorsi').delete().eq('id_telefono', id);
-    await supabase.from('telefoni').delete().eq('id', id);
-    caricaDati();
+    showConfirm({ message: 'Eliminare questo telefono?', confirmText: 'Elimina', onConfirm: async () => {
+      const supabase = getSupabaseClient();
+      await supabase.from('guardie_telefoni').delete().eq('id_telefono', id);
+      await supabase.from('telefoni_percorsi').delete().eq('id_telefono', id);
+      await supabase.from('telefoni').delete().eq('id', id);
+      caricaDati();
+    } });
   }
 
   async function toggleBlocco(id: string, attualmenteBloccato: boolean) {

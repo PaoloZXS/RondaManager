@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { getSupabaseClient, listCsvFiles, downloadCsv } from '../services/supabase';
 import { decryptCsv } from '../utils/crypto';
+import { showAlert } from '../components/AlertToast';
 
 interface Anomalia {
   id: string;
@@ -219,7 +220,7 @@ export default function AnomaliePage() {
         const nuove = g.anomalie.map(a => a.id === anomalia.id ? { ...a, risolta: !a.risolta } : a);
         return { ...g, anomalie: nuove, tutteRisolte: nuove.every(a => a.risolta) };
       }));
-    } catch (err) { alert(`Errore: ${err}`); }
+    } catch (err) { showAlert({ message: `Errore: ${err}` }); }
   }
 
   const ordinati = [...gruppi]

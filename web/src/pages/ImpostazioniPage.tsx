@@ -210,13 +210,13 @@ export default function ImpostazioniPage() {
             <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
               <button onClick={() => setDeleteUser(null)} style={{ padding: '10px 24px', background: '#6b7280', color: '#fff', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>Annulla</button>
               <button onClick={async () => {
-                if (deleteUser.username === 'admin') { alert('L\'utente admin non può essere eliminato.'); setDeleteUser(null); return; }
+                if (deleteUser.username === 'admin') { showAlert({ message: 'L\'utente admin non può essere eliminato.' }); setDeleteUser(null); return; }
                 try {
                   const { error } = await getSupabaseClient().from('utenti').delete().eq('id', deleteUser.id);
-                  if (error) { alert('Errore: ' + error.message); return; }
+                  if (error) { showAlert({ message: 'Errore: ' + error.message }); return; }
                   setDeleteUser(null);
                   caricaUtenti();
-                } catch (e: any) { alert('Errore: ' + e.message); }
+                } catch (e: any) { showAlert({ message: 'Errore: ' + e.message }); }
               }} style={{
                 padding: '8px 24px', borderRadius: 8, border: 'none',
                 background: '#e53e3e', color: '#fff', cursor: 'pointer', fontSize: 14, fontWeight: 600,

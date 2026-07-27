@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { getSupabaseClient } from '../services/supabase';
 import type { PuntoControllo, Percorso } from '../types';
+import { showConfirm } from '../components/ConfirmDialog';
 
 export default function PuntiControlloPage() {
   const [punti, setPunti] = useState<(PuntoControllo & { percorso_nome?: string })[]>([]);
@@ -67,10 +68,11 @@ export default function PuntiControlloPage() {
   }
 
   async function elimina(id: string) {
-    if (!confirm('Eliminare questo punto di controllo?')) return;
-    const supabase = getSupabaseClient();
-    await supabase.from('punti_controllo').delete().eq('id', id);
-    caricaDati();
+    showConfirm({ message: 'Eliminare questo punto di controllo?', confirmText: 'Elimina', onConfirm: async () => {
+      const supabase = getSupabaseClient();
+      await supabase.from('punti_controllo').delete().eq('id', id);
+      caricaDati();
+    } });
   }
 
   function resetForm() {
