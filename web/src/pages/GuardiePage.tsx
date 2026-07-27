@@ -57,7 +57,7 @@ export default function GuardiePage() {
   }
 
   async function salvaGuardia() {
-    if (!form.id_sede) { alert('Seleziona una sede'); return; }
+    if (!form.id_sede) { showAlert({ message: 'Seleziona una sede' }); return; }
     const supabase = getSupabaseClient();
     const guardiaId = editingId || crypto.randomUUID();
     const payload = { id: guardiaId, nome: form.nome, pin: form.pin, id_sede: form.id_sede };
@@ -94,11 +94,12 @@ export default function GuardiePage() {
   }
 
   async function elimina(id: string) {
-    if (!confirm('Eliminare questo sorvegliante?')) return;
-    const supabase = getSupabaseClient();
-    await supabase.from('guardie_telefoni').delete().eq('id_guardia', id);
-    await supabase.from('guardie').delete().eq('id', id);
-    caricaDati();
+    showConfirm({ message: 'Eliminare questo sorvegliante?', confirmText: 'Elimina', onConfirm: async () => {
+      const supabase = getSupabaseClient();
+      await supabase.from('guardie_telefoni').delete().eq('id_guardia', id);
+      await supabase.from('guardie').delete().eq('id', id);
+      caricaDati();
+    } });
   }
 
   function toggleTelefono(id: string) {

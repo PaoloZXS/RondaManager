@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { getSupabaseClient } from '../services/supabase';
 import type { Sede } from '../types';
+import { showConfirm } from '../components/ConfirmDialog';
 
 export default function SediPage() {
   const [sedi, setSedi] = useState<Sede[]>([]);
@@ -41,10 +42,16 @@ export default function SediPage() {
   }
 
   async function elimina(id: string) {
-    if (!confirm('Eliminare questa sede? Verranno eliminati anche sorveglianti, percorsi, telefoni collegati.')) return;
-    const supabase = getSupabaseClient();
-    await supabase.from('sedi').delete().eq('id', id);
-    caricaSedi();
+    showConfirm({
+      title: 'Elimina sede',
+      message: 'Eliminare questa sede? Verranno eliminati anche sorveglianti, percorsi, telefoni collegati.',
+      confirmText: 'Elimina',
+      onConfirm: async () => {
+        const supabase = getSupabaseClient();
+        await supabase.from('sedi').delete().eq('id', id);
+        caricaDati();
+      },
+    });
   }
 
   return (

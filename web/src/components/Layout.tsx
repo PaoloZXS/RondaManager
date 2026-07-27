@@ -1,6 +1,8 @@
 import { useEffect } from 'react';
 import { useNavigate, Outlet, Link, useLocation } from 'react-router-dom';
 import './Layout.css';
+import ConfirmDialog from './ConfirmDialog';
+import AlertToast from './AlertToast';
 
 const navItems = [
   { path: '/', label: 'Dashboard', icon: '📊', title: '' },
@@ -69,6 +71,8 @@ export default function Layout() {
       <main className="main-content">
         <Outlet />
       </main>
+      <ConfirmDialog />
+      <AlertToast />
     </div>
   );
 }
