@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { getSupabaseClient } from '../services/supabase';
 import type { Guardia, Sede, Telefono } from '../types';
+import { showConfirm } from '../components/ConfirmDialog';
+import { showAlert } from '../components/AlertToast';
 
 export default function GuardiePage() {
   const [guardie, setGuardie] = useState<(Guardia & { sede_nome?: string; telefoni?: string[] })[]>([]);
