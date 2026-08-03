@@ -2,15 +2,31 @@ import { useEffect, useState } from 'react';
 import { getSupabaseClient } from '../services/supabase';
 import type { Turno, Guardia, Percorso } from '../types';
 import ReportViewer from '../components/ReportViewer';
+import AnomalieTurnoModal from '../components/AnomalieTurnoModal';
+import { showConfirm } from '../components/ConfirmDialog';
+import { showAlert } from '../components/AlertToast';
+import { caricaAnomalieTurno } from '../utils/anomalie';
+
+interface ConteggioAnomalie {
+  totale: number;
+  aperte: number;
+  risolte: number;
+}
 
 export default function TurniPage() {
   const [turni, setTurni] = useState<Turno[]>([]);
   const [guardie, setGuardie] = useState<Guardia[]>([]);
   const [percorsi, setPercorsi] = useState<Percorso[]>([]);
   const [reportTurno, setReportTurno] = useState<string | null>(null);
+  const [anomalieTurno, setAnomalieTurno] = useState<string | null>(null);
+  const [conteggiAnomalie, setConteggiAnomalie] = useState<Record<string, ConteggioAnomalie>>({});
+  const [loadingConteggi, setLoadingConteggi] = useState(false);
+  const [progressoConteggi, setProgressoConteggi] = useState(0);
   const [filtroGuardia, setFiltroGuardia] = useState('');
   const [filtroPercorso, setFiltroPercorso] = useState('');
   const [filtroData, setFiltroData] = useState('');
+
+  const isArchivio = window.location.pathname === '/archivio';
 
   useEffect(() => {
     caricaDati();
@@ -19,16 +35,114 @@ export default function TurniPage() {
   async function caricaDati() {
     const supabase = getSupabaseClient();
     const [rTurni, rGuardie, rPercorsi] = await Promise.all([
-      supabase.from('turni').select('*').order('data_inizio', { ascending: false }),
+      supabase
+        .from('turni')
+        .select('*')
+        .or(isArchivio ? 'archiviato.eq.true' : 'archiviato.is.null,archiviato.eq.false')
+        .order('data_inizio', { ascending: false }),
       supabase.from('guardie').select('*'),
       supabase.from('percorsi').select('*'),
     ]);
-    if (rTurni.data) setTurni(rTurni.data);
+    const listaTurni = rTurni.data ?? [];
+    setTurni(listaTurni);
     if (rGuardie.data) setGuardie(rGuardie.data);
     if (rPercorsi.data) setPercorsi(rPercorsi.data);
+    if (listaTurni.length > 0) {
+      caricaConteggiAnomalie(listaTurni);
+    }
   }
 
+  async function caricaConteggiAnomalie(listaTurni: Turno[]) {
+    setLoadingConteggi(true);
+    setProgressoConteggi(0);
+    if (listaTurni.length === 0) {
+      setConteggiAnomalie({});
+      setLoadingConteggi(false);
+      return;
+    }
+    const mappa: Record<string, ConteggioAnomalie> = {};
+    for (let i = 0; i < listaTurni.length; i++) {
+      const t = listaTurni[i];
+      try {
+        const anomalie = await caricaAnomalieTurno(t.id);
+        mappa[t.id] = {
+          totale: anomalie.length,
+          aperte: anomalie.filter((a) => !a.risolta).length,
+          risolte: anomalie.filter((a) => a.risolta).length,
+        };
+      } catch (_) {
+        mappa[t.id] = { totale: 0, aperte: 0, risolte: 0 };
+      }
+      setProgressoConteggi(i + 1);
+    }
+    setConteggiAnomalie(mappa);
+    setLoadingConteggi(false);
+  }
+
+  async function eseguiArchiviazione(t: Turno) {
+    const supabase = getSupabaseClient();
+    const { error } = await supabase
+      .from('turni')
+      .update({ archiviato: true })
+      .eq('id', t.id);
+    if (error) {
+      showAlert({ message: `Errore durante l'archiviazione: ${error.message}` });
+      return;
+    }
+    caricaDati();
+  }
+
+  function archiviaTurno(t: Turno) {
+    showConfirm({
+      title: 'Archivia ronda',
+      message: 'Archiviare questa ronda?',
+      confirmText: 'Archivia',
+      cancelText: 'Annulla',
+      onConfirm: () => eseguiArchiviazione(t),
+    });
+  }
+
+  function archiviaDaModal(idTurno: string) {
+    const t = turni.find((x) => x.id === idTurno);
+    if (!t) return;
+    showConfirm({
+      title: 'Archivia ronda',
+      message: 'Archiviare questa ronda?',
+      confirmText: 'Archivia',
+      cancelText: 'Annulla',
+      onConfirm: async () => {
+        await eseguiArchiviazione(t);
+        setAnomalieTurno(null);
+      },
+    });
+  }
+
+  function ripristinaTurno(t: Turno) {
+    showConfirm({
+      title: 'Ripristina ronda',
+      message: "Ripristinare questa ronda? Tornerà in 'Ronde Completate'.",
+      confirmText: 'Ripristina',
+      cancelText: 'Annulla',
+      onConfirm: async () => {
+        const supabase = getSupabaseClient();
+        const { error } = await supabase
+          .from('turni')
+          .update({ archiviato: false })
+          .eq('id', t.id);
+        if (error) {
+          showAlert({ message: `Errore durante il ripristino: ${error.message}` });
+          return;
+        }
+        caricaDati();
+      },
+    });
+  }
+
+  const turnoAnomalie = anomalieTurno ? turni.find((t) => t.id === anomalieTurno) : null;
+
   const turniFiltrati = turni.filter(t => {
+    // Filtro per pagina: /turni → non archiviate, /archivio → archiviate
+    if (isArchivio ? !t.archiviato : t.archiviato) return false;
     // Filtri manuali
     if (filtroGuardia && t.id_guardia !== filtroGuardia) return false;
     if (filtroPercorso && t.id_percorso !== filtroPercorso) return false;
@@ -95,7 +209,42 @@ export default function TurniPage() {
         />
       )}
 
-      <div className="card">
+      {turnoAnomalie && (
+        <AnomalieTurnoModal
+          turnoId={turnoAnomalie.id}
+          turnoGuardiaNome={getNomeGuardia(turnoAnomalie.id_guardia)}
+          turnoPercorsoNome={getNomePercorso(turnoAnomalie.id_percorso)}
+          turnoDataInizio={turnoAnomalie.data_inizio}
+          onClose={() => setAnomalieTurno(null)}
+          onArchivia={() => archiviaDaModal(turnoAnomalie.id)}
+          onAnomalieAggiornate={(totale, aperte, risolte) => {
+            setConteggiAnomalie(prev => ({
+              ...prev,
+              [turnoAnomalie.id]: { totale, aperte, risolte },
+            }));
+          }}
+        />
+      )}
+
+      {loadingConteggi ? (
+        <div className="card" style={{ textAlign: 'center', padding: 40 }}>
+          <p style={{ color: '#666', marginBottom: 12 }}>
+            Caricamento anomalie: {progressoConteggi}/{turni.length} turni...
+          </p>
+          <div style={{
+            background: '#e5e7eb', borderRadius: 999, height: 8, maxWidth: 320,
+            margin: '0 auto', overflow: 'hidden',
+          }}>
+            <div style={{
+              background: 'linear-gradient(90deg, #4f46e5, #6366f1)',
+              height: '100%',
+              width: turni.length > 0 ? `${Math.round((progressoConteggi / turni.length) * 100)}%` : '0%',
+              borderRadius: 999, transition: 'width 0.3s ease',
+            }} />
+          </div>
+        </div>
+      ) : (
+        <div className="card">
         <table className="table">
           <thead>
             <tr>
@@ -104,41 +253,79 @@ export default function TurniPage() {
               <th>Inizio</th>
               <th>Fine</th>
               <th>Durata</th>
+              <th>Anomalie</th>
               <th>Azioni</th>
             </tr>
           </thead>
           <tbody>
-            {turniFiltrati.map((t) => {
+            {turniFiltrati.map((t, idx) => {
               const inizio = new Date(t.data_inizio);
               const fine = t.data_fine ? new Date(t.data_fine) : null;
               const durataMin = fine
                 ? Math.round((fine.getTime() - inizio.getTime()) / 60000)
                 : null;
+              const c = conteggiAnomalie[t.id];
               return (
-                <tr key={t.id}>
+                <tr key={t.id} style={{ background: idx % 2 === 1 ? '#f0f4ff' : '#ffffff' }}>
                   <td>{getNomeGuardia(t.id_guardia)}</td>
                   <td>{getNomePercorso(t.id_percorso)}</td>
                   <td>{formattaData(t.data_inizio)}</td>
                   <td>{t.data_fine ? formattaData(t.data_fine) : '-'}</td>
                   <td>{durataMin != null ? `${durataMin} min` : '-'}</td>
                   <td>
-                    <button title="Visualizza report turno" onClick={() => setReportTurno(t.id)}>
-                      📄 Report
-                    </button>
+                    {loadingConteggi && !c ? (
+                      <span style={{ color: '#999' }}>...</span>
+                    ) : !c || c.totale === 0 ? (
+                      <span style={{ color: '#9e9e9e' }}>—</span>
+                    ) : c.aperte > 0 ? (
+                      <button title="Anomalie ancora da risolvere — apri gestione"
+                        onClick={() => setAnomalieTurno(t.id)}
+                        style={{
+                          background: '#ffebee', color: '#c62828', border: 'none',
+                          padding: '3px 10px', borderRadius: 999,
+                          fontWeight: 700, fontSize: 12, cursor: 'pointer',
+                        }}>🔴 {c.aperte}/{c.totale}</button>
+                    ) : (
+                      <button title="Anomalie tutte risolte — apri gestione"
+                        onClick={() => setAnomalieTurno(t.id)}
+                        style={{
+                          background: '#e8f5e9', color: '#2e7d32', border: 'none',
+                          padding: '3px 10px', borderRadius: 999,
+                          fontWeight: 700, fontSize: 12, cursor: 'pointer',
+                        }}>✅ {c.risolte}/{c.totale}</button>
+                    )}
+                  </td>
+                  <td>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button title="Visualizza report turno (stampa)" onClick={() => setReportTurno(t.id)}>
+                        🖨️ Stampa
+                      </button>
+                      {!isArchivio && !t.archiviato && (
+                        <button title="Archivia ronda" onClick={() => archiviaTurno(t)}>
+                          📦 Archivia
+                        </button>
+                      )}
+                      {isArchivio && t.archiviato && (
+                        <button title="Ripristina ronda" onClick={() => ripristinaTurno(t)}>
+                          🔄 Ripristina
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               );
             })}
             {turniFiltrati.length === 0 && (
               <tr>
-                <td colSpan={6} style={{ textAlign: 'center', color: '#999' }}>
+                <td colSpan={7} style={{ textAlign: 'center', color: '#999' }}>
                   Nessun turno ancora registrato
                 </td>
               </tr>
             )}
           </tbody>
         </table>
-      </div>
+        </div>
+      )}
 
 
     </div>

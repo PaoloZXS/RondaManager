@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { getSupabaseClient } from '../services/supabase';
+import { showAlert } from '../components/AlertToast';
 
 export default function ImpostazioniPage() {
   const [password, setPassword] = useState('');
@@ -91,7 +92,7 @@ export default function ImpostazioniPage() {
 
   return (
     <div>
-      <h1 style={{ marginBottom: 24 }}>Impostazioni</h1>
+      <h1 style={{ marginBottom: 24 }}>Impostazioni Admin</h1>
 
       {/* Sezione superuser: gestione utenti */}
       {isSuperuser && (
@@ -127,7 +128,9 @@ export default function ImpostazioniPage() {
                     : <span className="badge" style={{ background: '#38a169', color: '#fff' }}>Attivo</span>}
                   </td>
                   <td style={{ display: 'flex', gap: 4 }}>
-                    <button onClick={() => { setEditUser(u); setEditUsername(u.username); }} style={{ fontSize: 12, padding: '4px 8px', cursor: 'pointer' }} title="Modifica nome utente">✏️</button>
+                    {u.username !== 'admin' && (
+                      <button onClick={() => { setEditUser(u); setEditUsername(u.username); }} style={{ fontSize: 12, padding: '4px 8px', cursor: 'pointer' }} title="Modifica nome utente">✏️</button>
+                    )}
                     {u.username !== 'admin' && (
                       <button onClick={async () => {
                         const nuovoStato = !u.bloccato;
@@ -245,6 +248,11 @@ export default function ImpostazioniPage() {
             <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginTop: 20 }}>
               <button onClick={() => setEditUser(null)} style={{ padding: '10px 24px', background: '#6b7280', color: '#fff', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>Annulla</button>
               <button id="btn-salva-nome" className="btn-primary" onClick={async () => {
+                if (editUser.username === 'admin') {
+                  showAlert({ message: "L'utente admin non può essere modificato." });
+                  setEditUser(null);
+                  return;
+                }
                 if (editUsername.trim() && editUsername.trim() !== editUser.username) {
                   await getSupabaseClient().from('utenti').update({ username: editUsername.trim() }).eq('id', editUser.id);
                   caricaUtenti();

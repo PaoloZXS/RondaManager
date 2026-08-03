@@ -11,7 +11,7 @@ export default function PuntiControlloPage() {
     descrizione: '',
   });
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [showForm, setShowForm] = useState(false);
+  const [showForm, setShowForm] = useState(true);
 
   useEffect(() => {
     caricaDati();
@@ -78,16 +78,12 @@ export default function PuntiControlloPage() {
   function resetForm() {
     setForm({ id: '', descrizione: '' });
     setEditingId(null);
-    setShowForm(false);
   }
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'nowrap', gap: 12 }}>
+      <div style={{ marginBottom: 20 }}>
         <h1 style={{ whiteSpace: 'nowrap' }}>Punti di Controllo</h1>
-        <button onClick={() => { setShowForm(!showForm); if (showForm) resetForm(); }} style={{ padding: '8px 16px', background: '#1a237e', color: '#fff', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>
-          {showForm ? 'Annulla' : '+ Nuovo Punto'}
-        </button>
       </div>
 
       {showForm && (
@@ -99,24 +95,31 @@ export default function PuntiControlloPage() {
                 placeholder="Avvicina TAG al lettore USB"
                 value={form.id}
                 onChange={(e) => setForm({ ...form, id: e.target.value })}
-                style={{ flex: 1, padding: 10, border: '1px solid #ddd', borderRadius: 8 }}
+                style={{ flex: 1, padding: 10, border: '1px solid #ddd', borderRadius: 8, background: editingId ? '#e3f2fd' : undefined }}
               />
               <input type="text"
                 placeholder="Descrizione"
                 value={form.descrizione}
                 onChange={(e) => setForm({ ...form, descrizione: e.target.value })}
-                style={{ flex: 2, padding: 10, border: '1px solid #ddd', borderRadius: 8 }}
+                style={{ flex: 2, padding: 10, border: '1px solid #ddd', borderRadius: 8, background: editingId ? '#e3f2fd' : undefined }}
               />
             </div>
 
-            <button className="btn-primary" onClick={salvaPunto} style={{ width: 'auto', padding: '10px 24px', alignSelf: 'flex-start', marginTop: 16 }}>
-              {editingId ? 'Aggiorna' : 'Salva'}
-            </button>
+            <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 16 }}>
+              <button className="btn-primary" onClick={salvaPunto}
+                disabled={!form.id.trim() || !form.descrizione.trim()}
+                style={{ width: 'auto', padding: '10px 24px', opacity: (!form.id.trim() || !form.descrizione.trim()) ? 0.5 : 1, cursor: (!form.id.trim() || !form.descrizione.trim()) ? 'not-allowed' : 'pointer' }}>
+                {editingId ? 'Aggiorna' : 'Salva'}
+              </button>
+              <button onClick={() => resetForm()} style={{ padding: '10px 24px', background: '#6b7280', color: '#fff', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
+                Annulla
+              </button>
+            </div>
           </div>
         </div>
       )}
 
-      <div className="card">
+      <div className="card" style={{ maxHeight: 480, overflowY: 'auto' }}>
         <table className="table">
           <thead>
             <tr>
@@ -126,11 +129,15 @@ export default function PuntiControlloPage() {
             </tr>
           </thead>
           <tbody>
-            {punti.map((p) => (
-              <tr key={p.id}>
-                <td><strong>{p.id}</strong></td>
-                <td>{p.descrizione}</td>
-                <td>
+            {punti.map((p, idx) => (
+              <tr key={p.id} onClick={() => modifica(p)} style={{
+                cursor: 'pointer',
+                background: idx % 2 === 1 ? '#fdf8f0' : '#f5ede0',
+                ...(editingId === p.id ? { border: '2px solid #4f46e5' } : {}),
+              }}>
+                <td style={{ padding: '6px 10px' }}><strong>{p.id}</strong></td>
+                <td style={{ padding: '6px 10px' }}>{p.descrizione}</td>
+                <td style={{ padding: '6px 10px' }} onClick={(e) => e.stopPropagation()}>
                   <button title="Modifica punto" onClick={() => modifica(p)} style={{ marginRight: 8 }}>✏️</button>
                   <button title="Elimina punto" onClick={() => elimina(p.id)}>🗑️</button>
                 </td>

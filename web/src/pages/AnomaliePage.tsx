@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { getSupabaseClient, listCsvFiles, downloadCsv } from '../services/supabase';
 import { decryptCsv } from '../utils/crypto';
+import { salvaNotaAnomalia, toggleAnomaliaRisolta } from '../utils/anomalie';
 import { showAlert } from '../components/AlertToast';
 
 interface Anomalia {
@@ -22,6 +23,8 @@ interface GruppoAnomalie {
   idTurno: string;
   idPercorso: string;
   percorsoNome: string;
+  dataInizio?: string;
+  guardiaNome?: string;
   anomalie: Anomalia[];
   tutteRisolte: boolean;
 }
@@ -44,6 +47,8 @@ export default function AnomaliePage() {
   const [error, setError] = useState('');
   const [mostraRisolti, setMostraRisolti] = useState(false);
   const [fotoIngrandita, setFotoIngrandita] = useState<string | null>(null);
+  const [salvataggioNota, setSalvataggioNota] = useState<string | null>(null);
+  const [notaSalvata, setNotaSalvata] = useState<string | null>(null);
 
   useEffect(() => {
     caricaAnomalie().catch(err => {
@@ -68,15 +73,30 @@ export default function AnomaliePage() {
       if (punti) for (const p of punti) mappaPunti[p.id] = p.descrizione;
 
       const { data: risolte } = await supabase.from('anomalie_risolte').select('*');
-      const mappaRisolte: Record<string, { note_risoluzione: string }> = {};
+      const mappaRisolte: Record<string, { risolta: boolean; note_risoluzione: string }> = {};
       if (risolte) {
         for (const r of risolte) {
-          mappaRisolte[r.id] = { note_risoluzione: r.note_risoluzione || '' };
+          mappaRisolte[r.id] = { risolta: r.risolta !== false, note_risoluzione: r.note_risoluzione || '' };
         }
       }
 
-      const { data: turni } = await supabase.from('turni').select('id, id_percorso').order('data_inizio', { ascending: false });
+      const { data: guardie } = await supabase.from('guardie').select('id, nome');
+      const mappaGuardie: Record<string, string> = {};
+      if (guardie) for (const g of guardie) mappaGuardie[g.id] = g.nome;
+
+      const { data: turni } = await supabase
+        .from('turni')
+        .select('id, id_percorso, data_inizio, id_guardia')
+        .order('data_inizio', { ascending: false });
       if (!turni || turni.length === 0) { setGruppi([]); return; }
+
+      const mappaTurni: Record<string, { dataInizio: string; guardiaNome: string }> = {};
+      for (const t of turni) {
+        mappaTurni[t.id] = {
+          dataInizio: t.data_inizio || '',
+          guardiaNome: mappaGuardie[t.id_guardia] || '',
+        };
+      }
 
       const tutte: Anomalia[] = [];
       for (const turno of turni) {
@@ -110,7 +130,7 @@ export default function AnomaliePage() {
                   percorsoNome: mappaPercorsi[turno.id_percorso] || '?',
                   idPunto, puntoDescrizione: mappaPunti[idPunto] || idPunto,
                   timestamp, nota, nomeFoto: nomeFoto || '', haFoto: !!nomeFoto,
-                  risolta: !!mappaRisolte[anomId],
+                  risolta: mappaRisolte[anomId]?.risolta ?? false,
                   noteRisoluzione: mappaRisolte[anomId]?.note_risoluzione || '',
                 });
               }
@@ -132,8 +152,13 @@ export default function AnomaliePage() {
       for (const a of tutte) {
         const key = `${a.idTurno}_${a.idPercorso}`;
         if (!mappa.has(key)) {
-          mappa.set(key, { idTurno: a.idTurno, idPercorso: a.idPercorso,
-            percorsoNome: a.percorsoNome, anomalie: [], tutteRisolte: false });
+          mappa.set(key, {
+            idTurno: a.idTurno, idPercorso: a.idPercorso,
+            percorsoNome: a.percorsoNome,
+            dataInizio: mappaTurni[a.idTurno]?.dataInizio || '',
+            guardiaNome: mappaTurni[a.idTurno]?.guardiaNome || '',
+            anomalie: [], tutteRisolte: false,
+          });
         }
         mappa.get(key)!.anomalie.push(a);
       }
@@ -209,18 +234,29 @@ export default function AnomaliePage() {
   }
 
   async function toggleRisolto(anomalia: Anomalia) {
-    const supabase = getSupabaseClient();
     try {
-      if (anomalia.risolta) {
-        await supabase.from('anomalie_risolte').delete().eq('id', anomalia.id);
-      } else {
-        await supabase.from('anomalie_risolte').upsert({ id: anomalia.id, id_turno: anomalia.idTurno, note_risoluzione: anomalia.noteRisoluzione || '' }, { onConflict: 'id' });
-      }
+      await toggleAnomaliaRisolta(anomalia);
       setGruppi(prev => prev.map(g => {
         const nuove = g.anomalie.map(a => a.id === anomalia.id ? { ...a, risolta: !a.risolta } : a);
         return { ...g, anomalie: nuove, tutteRisolte: nuove.every(a => a.risolta) };
       }));
     } catch (err) { showAlert({ message: `Errore: ${err}` }); }
+  }
+
+  async function salvaNota(anomalia: Anomalia) {
+    if (salvataggioNota) return;
+    setSalvataggioNota(anomalia.id);
+    try {
+      await salvaNotaAnomalia(anomalia);
+      setNotaSalvata(anomalia.id);
+      window.setTimeout(() => {
+        setNotaSalvata(prev => (prev === anomalia.id ? null : prev));
+      }, 2000);
+    } catch (err) {
+      showAlert({ message: `Errore: ${err}` });
+    } finally {
+      setSalvataggioNota(null);
+    }
   }
 
   const ordinati = [...gruppi]
@@ -252,7 +288,18 @@ export default function AnomaliePage() {
         </div>
       </div>
 
-      {loading && <div className="card" style={{ textAlign: 'center', padding: 40 }}><p style={{ color: '#666' }}>Caricamento anomalie...</p></div>}
+      {loading && (
+        <div className="card" style={{ textAlign: 'center', padding: 40 }}>
+          <div style={{
+            width: 40, height: 40, margin: '0 auto',
+            border: '4px solid rgba(79,70,229,0.2)',
+            borderTopColor: '#4f46e5',
+            borderRadius: '50%',
+            animation: 'spin 0.8s linear infinite',
+          }} />
+          <p style={{ color: '#666', marginTop: 12 }}>Caricamento in corso...</p>
+        </div>
+      )}
       {error && <div className="card" style={{ textAlign: 'center', padding: 40, border: '1px solid #ef5350' }}><p style={{ color: '#c62828' }}>{error}</p></div>}
       {!loading && !error && ordinati.length === 0 && (
         <div className="card" style={{ textAlign: 'center', padding: 40 }}>
@@ -262,14 +309,17 @@ export default function AnomaliePage() {
 
       {!loading && ordinati.map(gruppo => (
         <div key={`${gruppo.idTurno}_${gruppo.idPercorso}`} className="card" style={{
-          marginBottom: 16,
+          marginBottom: 12, padding: '12px 14px',
           border: gruppo.tutteRisolte ? '1px solid #a5d6a7' : '1px solid #ffcdd2',
           borderLeft: gruppo.tutteRisolte ? '6px solid #4caf50' : '6px solid #ef5350',
         }}>
-          <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ marginBottom: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
-              <strong style={{ fontSize: 16 }}>{gruppo.percorsoNome}</strong>
-              <span style={{ fontSize: 12, color: '#999', marginLeft: 8 }}>({gruppo.anomalie.length} anomalie)</span>
+              <strong style={{ fontSize: 15 }}>Ronda con anomalie : {gruppo.percorsoNome}</strong>
+              <div style={{ fontSize: 12, color: '#666', marginTop: 2 }}>
+                {gruppo.dataInizio ? `📅 ${new Date(gruppo.dataInizio).toLocaleString('it-IT')}` : ''}
+                {gruppo.guardiaNome ? ` · 👤 ${gruppo.guardiaNome}` : ''}
+              </div>
             </div>
             <button onClick={() => stampaGruppo(gruppo)}
               style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid #d1d5db',
@@ -278,38 +328,51 @@ export default function AnomaliePage() {
             </button>
           </div>
 
-          {gruppo.anomalie.map((anomalia, idx) => {
-            const fotoUrlStr = anomalia.haFoto
-              ? `https://sixcslagfkoujyvephmu.supabase.co/storage/v1/object/public/ronde-foto/T01/foto/${anomalia.nomeFoto}`
-              : '';
-            return (
-              <div key={anomalia.id} style={{
-                background: anomalia.risolta ? '#e8f5e9' : '#fff8e1',
-                padding: '10px 12px', borderRadius: 8, marginBottom: 10,
-                border: anomalia.risolta ? '2px solid #4caf50' : '2px solid #ff9800',
-                borderLeft: anomalia.risolta ? '6px solid #2e7d32' : '6px solid #e65100',
-              }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 600, fontSize: 13, color: anomalia.risolta ? '#2e7d32' : '#e65100', marginBottom: 2 }}>
-                      {anomalia.risolta ? '✅ FATTA' : '🔴 DA RISOLVERE'} &mdash; Punto di Controllo: {anomalia.puntoDescrizione}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, alignItems: 'start' }}>
+            {gruppo.anomalie.map((anomalia) => {
+              const fotoUrlStr = anomalia.haFoto
+                ? `https://sixcslagfkoujyvephmu.supabase.co/storage/v1/object/public/ronde-foto/T01/foto/${anomalia.nomeFoto}`
+                : '';
+              return (
+                <div key={anomalia.id} style={{
+                  background: anomalia.risolta ? '#e8f5e9' : '#fff8e1',
+                  padding: '8px 10px', borderRadius: 8,
+                  border: anomalia.risolta ? '1px solid #a5d6a7' : '1px solid #ffcc80',
+                  borderLeft: anomalia.risolta ? '4px solid #2e7d32' : '4px solid #e65100',
+                  display: 'flex', flexDirection: 'column',
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 4 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, fontSize: 12, color: anomalia.risolta ? '#2e7d32' : '#e65100', lineHeight: 1.3 }}>
+                        {anomalia.risolta ? '✅ FATTA' : '🔴 DA RISOLVERE'} &mdash; {anomalia.puntoDescrizione}
+                      </div>
+                      <div style={{ fontSize: 11, color: '#666', marginTop: 2 }}>
+                        {new Date(anomalia.timestamp).toLocaleString('it-IT')}
+                      </div>
                     </div>
-                    <div style={{ fontSize: 12, color: '#666', marginBottom: 4 }}>
-                      {new Date(anomalia.timestamp).toLocaleString('it-IT')}
-                    </div>
-                    <div style={{ fontSize: 14, marginBottom: 4 }}>📝 <strong>Anomalia riscontrata:</strong> {anomalia.nota}</div>
+                    <button onClick={() => toggleRisolto(anomalia)}
+                      style={{ padding: '5px 10px', borderRadius: 6, border: 'none',
+                        background: anomalia.risolta ? '#9e9e9e' : '#4caf50', color: '#fff',
+                        cursor: 'pointer', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0 }}>
+                      {anomalia.risolta ? '🔄 Riapri' : '✅ Risolto'}
+                    </button>
+                  </div>
+
+                  <div style={{ fontSize: 12, color: '#374151', marginBottom: 6 }}>
+                    📝 <strong>Anomalia:</strong> {anomalia.nota}
+                  </div>
+
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 6 }}>
                     {fotoUrlStr && (
                       <img src={fotoUrlStr} alt="foto"
-                        onMouseEnter={(e) => { (e.target as HTMLImageElement).style.transform = 'scale(2.5)'; (e.target as HTMLImageElement).style.zIndex = '10'; (e.target as HTMLImageElement).style.position = 'relative'; }}
+                        onMouseEnter={(e) => { (e.target as HTMLImageElement).style.transform = 'scale(2.2)'; (e.target as HTMLImageElement).style.zIndex = '10'; (e.target as HTMLImageElement).style.position = 'relative'; }}
                         onMouseLeave={(e) => { (e.target as HTMLImageElement).style.transform = 'scale(1)'; (e.target as HTMLImageElement).style.zIndex = '0'; (e.target as HTMLImageElement).style.position = 'static'; }}
                         onClick={() => setFotoIngrandita(fotoUrlStr)}
                         onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                        style={{ height: 80, borderRadius: 6, cursor: 'pointer', border: '1px solid #ddd', objectFit: 'cover', transition: 'transform 0.2s' }}
+                        style={{ height: 56, width: 56, borderRadius: 4, cursor: 'pointer', border: '1px solid #ddd', objectFit: 'cover', flexShrink: 0, transition: 'transform 0.2s' }}
                       />
                     )}
-
-                    {/* Textarea nota risoluzione per questa anomalia */}
-                    <div style={{ marginTop: 8 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
                       <textarea value={anomalia.noteRisoluzione || ''}
                         onChange={(e) => {
                           const val = e.target.value;
@@ -321,21 +384,30 @@ export default function AnomaliePage() {
                           })));
                         }}
                         placeholder="Note intervento sull'anomalia"
-                        style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #d1d5db', fontSize: 13, minHeight: 50, boxSizing: 'border-box', resize: 'vertical' }}
+                        style={{ width: '100%', padding: 6, borderRadius: 6, border: '1px solid #d1d5db', fontSize: 12, minHeight: 38, boxSizing: 'border-box', resize: 'vertical' }}
                       />
+                      <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <button onClick={() => salvaNota(anomalia)}
+                          disabled={salvataggioNota === anomalia.id}
+                          title="Salva la nota di risoluzione"
+                          style={{
+                            padding: '3px 8px', borderRadius: 6,
+                            border: '1px solid #d1d5db', background: '#fff',
+                            cursor: salvataggioNota === anomalia.id ? 'wait' : 'pointer',
+                            fontSize: 11, fontWeight: 600, color: '#374151',
+                          }}>
+                          {salvataggioNota === anomalia.id ? '...' : '💾 Salva Nota'}
+                        </button>
+                        {notaSalvata === anomalia.id && (
+                          <span style={{ fontSize: 11, color: '#2e7d32', fontWeight: 600 }}>✅ Nota salvata</span>
+                        )}
+                      </div>
                     </div>
                   </div>
-
-                  <button onClick={() => toggleRisolto(anomalia)}
-                    style={{ padding: '8px 16px', borderRadius: 8, border: 'none',
-                      background: anomalia.risolta ? '#9e9e9e' : '#4caf50', color: '#fff',
-                      cursor: 'pointer', fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0 }}>
-                    {anomalia.risolta ? '🔄 Riapri' : '✅ Risolto'}
-                  </button>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       ))}
 
