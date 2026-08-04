@@ -261,11 +261,11 @@ export default function ReportViewer({ turnoId, onClose, titolo }: Props) {
       doc.setTextColor(31, 41, 55);
       doc.text(doc.splitTextToSize(nomePunto, w - 18), x + 14, y + 6);
 
-      // Timestamp + batteria
+      // Timestamp
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(8);
       doc.setTextColor(107, 114, 128);
-      doc.text(`${timestamp} · 🔋 ${d.batteria}%`, x + 14, y + 11);
+      doc.text(timestamp, x + 14, y + 11);
 
       let cursor = y + 16;
 
@@ -405,7 +405,7 @@ export default function ReportViewer({ turnoId, onClose, titolo }: Props) {
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontWeight: 700, fontSize: 15, color: '#1f2937' }}>{nomePunto}</div>
                       <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>
-                        {new Date(d.timestamp).toLocaleString('it-IT')} · 🔋 {d.batteria}%
+                        {new Date(d.timestamp).toLocaleString('it-IT')}
                       </div>
                       {d.nota ? (
                         <div style={{ marginTop: 8, fontSize: 12, fontWeight: 600, color: '#6b7280' }}>Irregolarita' segnalata</div>

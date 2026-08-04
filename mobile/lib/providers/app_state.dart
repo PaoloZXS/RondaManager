@@ -44,7 +44,21 @@ class AppState extends ChangeNotifier {
   String? get errore => _errore;
   Configurazione? get configurazione => _configurazione;
   Guardia? get guardiaCorrente => _guardiaCorrente;
-  Turno? get turnoCorrente => _turnoCorrente;
+  /// Restituisce il turno corrente ricaricando sempre i timbri dal database.
+  /// Da usare nei contesti async. Per l'accesso sincrono (widget) usare
+  /// `turnoCorrenteSync`.
+  Future<Turno?> get turnoCorrente async {
+    final turno = _turnoCorrente;
+    if (turno == null) return null;
+    final timbri = await _databaseService.leggiTimbri(turno.id);
+    turno.timbri
+      ..clear()
+      ..addAll(timbri);
+    return turno;
+  }
+
+  /// Accesso sincrono al turno corrente (per la UI, senza lettura dal DB).
+  Turno? get turnoCorrenteSync => _turnoCorrente;
   List<Guardia> get guardie => _configurazione?.guardie ?? [];
   List<Percorso> get percorsi => _configurazione?.percorsi ?? [];
   DatabaseService get database => _databaseService;
@@ -266,6 +280,19 @@ class AppState extends ChangeNotifier {
     _turnoCorrente!.sincronizzato = false;
     await _databaseService.aggiornaSincronizzato(_turnoCorrente!.id, false);
 
+    notifyListeners();
+  }
+
+  /// Ricarica i timbri del turno corrente dal database locale.
+  /// Garantisce che il turno restituito da `turnoCorrente` abbia sempre
+  /// i timbri aggiornati (es. prima del controllo di fine turno).
+  Future<void> ricaricaTimbriTurnoCorrente() async {
+    final turno = _turnoCorrente;
+    if (turno == null) return;
+    final timbri = await _databaseService.leggiTimbri(turno.id);
+    turno.timbri
+      ..clear()
+      ..addAll(timbri);
     notifyListeners();
   }
 

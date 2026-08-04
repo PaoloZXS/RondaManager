@@ -381,7 +381,10 @@ class _TurnoScreenState extends State<TurnoScreen> {
 
   Future<void> _confermaFineTurno() async {
     final state = context.read<AppState>();
-    final turno = state.turnoCorrente;
+    // Ricarica i timbri dal DB prima del controllo di completezza percorso
+    await state.ricaricaTimbriTurnoCorrente();
+    if (!mounted) return;
+    final turno = state.turnoCorrenteSync;
     final percorso = turno != null
         ? state.percorsi.where((p) => p.id == turno.idPercorso).firstOrNull
         : null;
@@ -527,8 +530,9 @@ class _TurnoScreenState extends State<TurnoScreen> {
     final descrizione = punto?.descrizione ?? idPunto;
 
     // Trova l'ultimo punto del percorso corrente
+    final turnoCorrente = await state.turnoCorrente;
     final percorso = state.configurazione?.percorsi
-        .where((p) => p.id == state.turnoCorrente?.idPercorso)
+        .where((p) => p.id == turnoCorrente?.idPercorso)
         .firstOrNull;
     final isUltimoPunto = percorso != null &&
         percorso.sequenzaPunti.isNotEmpty &&
@@ -669,7 +673,7 @@ class _TurnoScreenState extends State<TurnoScreen> {
             return const Center(child: CircularProgressIndicator());
           }
 
-          final turno = state.turnoCorrente;
+          final turno = state.turnoCorrenteSync;
 
           return Column(
             children: [
@@ -886,7 +890,7 @@ class _TurnoScreenState extends State<TurnoScreen> {
   }
 
   Widget _buildTurnoCard(AppState state) {
-    final turno = state.turnoCorrente;
+    final turno = state.turnoCorrenteSync;
     if (turno == null) return const SizedBox.shrink();
     final percorso = turno != null
         ? state.percorsi.where((p) => p.id == turno.idPercorso).firstOrNull
