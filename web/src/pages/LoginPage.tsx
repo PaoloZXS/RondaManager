@@ -33,9 +33,12 @@ export default function LoginPage() {
     setError('');
 
     if (password === SUPERUSER_PASSWORD) {
+      const now = new Date().toISOString();
       localStorage.setItem('auth', 'true');
       localStorage.setItem('is_superuser', 'true');
       localStorage.setItem('username', 'Admin');
+      localStorage.setItem('login_time', now);
+      localStorage.setItem('last_activity', now);
       navigate('/');
       return;
     }
@@ -72,8 +75,11 @@ export default function LoginPage() {
       return;
     }
 
+    const now = new Date().toISOString();
     localStorage.setItem('auth', 'true');
     localStorage.setItem('username', utente.username);
+    localStorage.setItem('login_time', now);
+    localStorage.setItem('last_activity', now);
     navigate('/');
   }
 

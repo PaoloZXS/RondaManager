@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useNavigate, Outlet, useLocation } from 'react-router-dom';
+import { getSupabaseClient } from '../services/supabase';
 import './Layout.css';
 import ConfirmDialog from './ConfirmDialog';
 import AlertToast from './AlertToast';
@@ -25,6 +26,8 @@ export default function Layout() {
     localStorage.removeItem('auth');
     localStorage.removeItem('is_superuser');
     localStorage.removeItem('username');
+    localStorage.removeItem('login_time');
+    localStorage.removeItem('last_activity');
     navigate('/login');
   };
 
@@ -35,6 +38,58 @@ export default function Layout() {
       navigate('/login', { replace: true });
     }
   }, [isLoggedIn, location.pathname, navigate]);
+
+  // Scadenza sessione: controlla ogni 30s last_activity vs session_timeout_minutes
+  useEffect(() => {
+    if (!isLoggedIn) return;
+
+    // Legge il timeout sessione (minuti) da Supabase, fallback 480
+    let sessionTimeoutMinutes = 480;
+    (async () => {
+      try {
+        const supabase = getSupabaseClient();
+        const { data } = await supabase
+          .from('impostazioni')
+          .select('valore')
+          .eq('chiave', 'session_timeout_minutes')
+          .maybeSingle();
+        if (data) {
+          const parsed = parseInt(String(data.valore), 10);
+          if (!isNaN(parsed) && parsed > 0) sessionTimeoutMinutes = parsed;
+        }
+      } catch (_) {}
+    })();
+
+    // Aggiorna last_activity a ogni interazione utente
+    const aggiornaAttivita = () => {
+      localStorage.setItem('last_activity', new Date().toISOString());
+    };
+    window.addEventListener('click', aggiornaAttivita);
+    window.addEventListener('keydown', aggiornaAttivita);
+
+    // Controllo di scadenza ogni 30 secondi
+    const interval = setInterval(() => {
+      const last = localStorage.getItem('last_activity');
+      if (!last) return;
+      const lastTs = new Date(last).getTime();
+      if (isNaN(lastTs)) return;
+      const minutiTrascorsi = (Date.now() - lastTs) / 60000;
+      if (minutiTrascorsi >= sessionTimeoutMinutes) {
+        localStorage.removeItem('auth');
+        localStorage.removeItem('is_superuser');
+        localStorage.removeItem('username');
+        localStorage.removeItem('login_time');
+        localStorage.removeItem('last_activity');
+        navigate('/login', { replace: true });
+      }
+    }, 30000);
+
+    return () => {
+      window.removeEventListener('click', aggiornaAttivita);
+      window.removeEventListener('keydown', aggiornaAttivita);
+      clearInterval(interval);
+    };
+  }, [isLoggedIn, navigate]);
 
   if (!isLoggedIn) {
     return <Outlet />;

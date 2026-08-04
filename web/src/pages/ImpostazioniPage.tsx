@@ -161,7 +161,11 @@ export default function ImpostazioniPage() {
               {utenti.map(u => (
                 <tr key={u.id}>
                   <td><strong>{u.username}</strong></td>
-                  <td style={{ fontFamily: 'monospace' }}>{u.password}</td>
+                  <td style={{ fontFamily: 'monospace' }}>
+                    {u.username === 'admin' || (u.password === '00000' && u.password_modificata === false)
+                      ? u.password
+                      : '*****'}
+                  </td>
                   <td>{u.bloccato
                     ? <span className="badge" style={{ background: '#e53e3e', color: '#fff' }}>Bloccato</span>
                     : <span className="badge" style={{ background: '#38a169', color: '#fff' }}>Attivo</span>}
@@ -180,6 +184,13 @@ export default function ImpostazioniPage() {
                       </button>
                     )}
                     {u.username !== 'admin' && (
+                      <button onClick={async () => {
+                        await getSupabaseClient().from('utenti').update({ password: '00000', password_modificata: false }).eq('id', u.id);
+                        caricaUtenti();
+                        showAlert({ message: 'Password resettata a 00000' });
+                      }} style={{ fontSize: 12, padding: '4px 8px', cursor: 'pointer', color: '#8b5cf6' }} title="Reset password a 00000">🔄</button>
+                    )}
+                    {u.username !== 'admin' && (
                       <button onClick={() => setDeleteUser(u)} style={{ fontSize: 12, padding: '4px 8px', cursor: 'pointer', color: '#e53e3e' }} title="Elimina utente">🗑️</button>
                     )}
                   </td>
@@ -193,10 +204,9 @@ export default function ImpostazioniPage() {
           </div>
 
           <div className="card" style={{ flex: 1, minWidth: 320, maxWidth: 650 }}>
-            <h3>Impostazioni App</h3>
+            <h3>Impostazioni Timeout chiusura sessione</h3>
           <p style={{ color: '#666', fontSize: 14, marginBottom: 12 }}>
-            Scadenza sessione guardia (app mobile): dopo questo numero di minuti la sessione
-            scade e richiede un nuovo login.
+            Dopo questo numero di minuti di inattività, la sessione scade automaticamente su tutti i dispositivi (app mobile e pannello web). L'utente dovrà effettuare nuovamente il login.
           </p>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
             <label htmlFor="timeout-minuti" style={{ fontSize: 14, color: '#374151', fontWeight: 600, whiteSpace: 'nowrap' }}>
