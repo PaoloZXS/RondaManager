@@ -61,6 +61,16 @@
   transition: all 0.2s;
 }
 
+/* Reset per i button di navigazione: niente href, quindi nessuna anteprima URL nella status bar */
+button.nav-item {
+  width: 100%;
+  border: none;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
 .nav-item:hover {
   background: rgba(255, 255, 255, 0.1);
   color: white;

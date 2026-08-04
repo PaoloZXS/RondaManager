@@ -1,20 +1,20 @@
 import { useEffect } from 'react';
-import { useNavigate, Outlet, Link, useLocation } from 'react-router-dom';
+import { useNavigate, Outlet, useLocation } from 'react-router-dom';
 import './Layout.css';
 import ConfirmDialog from './ConfirmDialog';
 import AlertToast from './AlertToast';
 
 const navItems = [
-  { path: '/', label: 'Dashboard', icon: '📊', title: '' },
-  { path: '/sedi', label: 'Sedi', icon: '🏢', title: 'Inserimento delle sedi da gestire' },
-  { path: '/punti-controllo', label: 'Punti di controllo', icon: '📍', title: 'Inserimento dei Punti di controllo dei Percorsi Ronde' },
-  { path: '/percorsi', label: 'Percorsi Ronde', icon: '🗺️', title: 'Configurazione del percorso del sorvegliante' },
-  { path: '/telefoni', label: 'Telefoni', icon: '📱', title: 'Configurazione del Telefono da usare per la lettura dei TAG' },
-  { path: '/guardie', label: 'Sorveglianti', icon: '👤', title: 'Inserimento dei Sorveglianti abilitati alle Ronde' },
-  { path: '/turni', label: 'Ronde Completate', icon: '🕐', title: 'Gestione Ronde completate dai Sorveglianti' },
-  { path: '/archivio', label: 'Ronde Archiviate', icon: '🗂️', title: 'Gestione delle Ronde già gestite dall\'Admin' },
-  { path: '/anomalie', label: 'Anomalie riscontrate', icon: '⚠️', title: 'Gestione delle anomalie sulle Ronde eseguite' },
-  { path: '/impostazioni', label: 'Impostazioni', icon: '⚙️', title: 'Modifica Impostazioni Admin' },
+  { path: '/', label: 'Dashboard', icon: '📊' },
+  { path: '/sedi', label: 'Sedi', icon: '🏢' },
+  { path: '/punti-controllo', label: 'Punti di controllo', icon: '📍' },
+  { path: '/percorsi', label: 'Percorsi Ronde', icon: '🗺️' },
+  { path: '/telefoni', label: 'Telefoni', icon: '📱' },
+  { path: '/guardie', label: 'Sorveglianti', icon: '👤' },
+  { path: '/turni', label: 'Ronde Completate', icon: '🕐' },
+  { path: '/archivio', label: 'Ronde Archiviate', icon: '🗂️' },
+  { path: '/anomalie', label: 'Anomalie riscontrate', icon: '⚠️' },
+  { path: '/impostazioni', label: 'Impostazioni', icon: '⚙️' },
 ];
 
 export default function Layout() {
@@ -49,17 +49,17 @@ export default function Layout() {
         </div>
         <nav className="sidebar-nav">
           {navItems.map((item) => (
-            <Link
+            <button
               key={item.path}
-              to={item.path}
-              title={item.title}
+              type="button"
+              onClick={() => navigate(item.path)}
               className={`nav-item ${
                 location.pathname === item.path ? 'active' : ''
               }`}
             >
               <span className="nav-icon">{item.icon}</span>
               <span className="nav-label">{item.label}</span>
-            </Link>
+            </button>
           ))}
         </nav>
         <div className="sidebar-footer">

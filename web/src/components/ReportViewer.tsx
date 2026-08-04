@@ -203,49 +203,116 @@ export default function ReportViewer({ turnoId, onClose, titolo }: Props) {
       doc.text(durata, 50, 46);
     }
 
-    const rows = dati.map((d, i) => [
-      i + 1,
-      mappaPunti[d.id_punto] || d.id_punto,
-      new Date(d.timestamp).toLocaleString('it-IT'),
-      d.nota || '-',
-      `${d.batteria}%`,
-    ]);
+    // Griglia a 2 colonne per i timbri (stile pagina Anomalie)
+    const marginX = 14;
+    const colWidth = 89;
+    const gapX = 4;
+    const pageHeight = doc.internal.pageSize.getHeight();
 
-    (doc as any).autoTable({
-      startY: dataFine ? (durata ? 56 : 50) : 44,
-      head: [['#', 'Punto', 'Ora', 'Nota', 'Batt.']],
-      body: rows,
-    });
-
-    // Aggiungi foto sotto la tabella
-    let yOffset = (doc as any).lastAutoTable.finalY + 10;
-    for (let idx = 0; idx < dati.length; idx++) {
-      const d = dati[idx];
-      if (!d.nome_foto) continue;
+    // Pre-carica le foto per poter calcolare l'altezza delle card
+    const fotoBase64: (string | null)[] = await Promise.all(dati.map(async (d) => {
+      if (!d.nome_foto) return null;
       try {
         const resp = await fetch(fotoUrl(idTelefono, d.nome_foto));
         const blob = await resp.blob();
-        const base64 = await new Promise<string>((resolve) => {
+        return await new Promise<string>((resolve) => {
           const reader = new FileReader();
           reader.onloadend = () => resolve(reader.result as string);
           reader.readAsDataURL(blob);
         });
-        // Controlla se serve nuova pagina
-        if (yOffset > 250) {
-          doc.addPage();
-          yOffset = 20;
-        }
-        const nomePunto = mappaPunti[d.id_punto] || d.id_punto;
-        doc.setFontSize(10);
-        let label = `Foto - ${nomePunto} (${new Date(d.timestamp).toLocaleString('it-IT')})`;
-        if (d.nota) label += ` - Irregolarità: ${d.nota}`;
-        doc.text(label + ':', 14, yOffset);
-        yOffset += 6;
-        doc.addImage(base64, 'JPEG', 14, yOffset, 50, 38);
-        yOffset += 44;
       } catch (_) {
-        // Se non riesce a caricare la foto, salta
+        return null;
       }
+    }));
+
+    function computeCardHeight(d: DatoTimbro, foto: string | null): number {
+      let h = 22;
+      if (d.nota) {
+        const lines = doc.splitTextToSize(d.nota, colWidth - 32).length;
+        h += 4 + Math.max(8, lines * 3.5 + 3);
+      }
+      if (foto) h += 40;
+      return h;
+    }
+
+    function drawCard(
+      doc: jsPDF, d: DatoTimbro, idx: number,
+      x: number, y: number, w: number, h: number, foto: string | null,
+    ) {
+      const nomePunto = mappaPunti[d.id_punto] || d.id_punto;
+      const timestamp = new Date(d.timestamp).toLocaleString('it-IT');
+
+      // Sfondo e bordo card
+      doc.setFillColor(250, 251, 252);
+      doc.setDrawColor(229, 231, 235);
+      doc.roundedRect(x, y, w, h, 2, 2, 'FD');
+
+      // Badge numero
+      doc.setFillColor(79, 70, 229);
+      doc.circle(x + 7, y + 7, 3.5, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.text(String(idx + 1), x + 7, y + 8, { align: 'center' });
+
+      // Nome punto
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.setTextColor(31, 41, 55);
+      doc.text(doc.splitTextToSize(nomePunto, w - 18), x + 14, y + 6);
+
+      // Timestamp + batteria
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(107, 114, 128);
+      doc.text(`${timestamp} · 🔋 ${d.batteria}%`, x + 14, y + 11);
+
+      let cursor = y + 16;
+
+      // Nota irregolarità
+      if (d.nota) {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8);
+        doc.setTextColor(107, 114, 128);
+        doc.text('Irregolarità segnalata', x + 14, cursor);
+        doc.setFont('helvetica', 'normal');
+        cursor += 4.5;
+        const lines = doc.splitTextToSize(d.nota, w - 32);
+        const boxH = Math.max(8, lines.length * 3.5 + 3);
+        doc.setFillColor(243, 244, 246);
+        doc.setDrawColor(99, 102, 241);
+        doc.roundedRect(x + 14, cursor - 3, w - 28, boxH, 1, 1, 'FD');
+        doc.setTextColor(55, 65, 81);
+        doc.text(lines, x + 16, cursor);
+        cursor += boxH + 2;
+      }
+
+      // Foto
+      if (foto) {
+        const imgW = w - 28;
+        const imgH = 36;
+        doc.addImage(foto, 'JPEG', x + 14, cursor, imgW, imgH);
+      }
+    }
+
+    let y = dataFine ? (durata ? 56 : 50) : 44;
+
+    // Disegna le card in righe da 2
+    for (let i = 0; i < dati.length; i += 2) {
+      const h0 = computeCardHeight(dati[i], fotoBase64[i]);
+      const h1 = i + 1 < dati.length ? computeCardHeight(dati[i + 1], fotoBase64[i + 1]) : 0;
+      const rowH = Math.max(h0, h1);
+
+      if (y + rowH > pageHeight - 10) {
+        doc.addPage();
+        y = 20;
+      }
+
+      drawCard(doc, dati[i], i, marginX, y, colWidth, h0, fotoBase64[i]);
+      if (i + 1 < dati.length) {
+        drawCard(doc, dati[i + 1], i + 1, marginX + colWidth + gapX, y, colWidth, h1, fotoBase64[i + 1]);
+      }
+      y += rowH + 4;
     }
 
     const pdfBlob = doc.output('blob');
@@ -320,12 +387,13 @@ export default function ReportViewer({ turnoId, onClose, titolo }: Props) {
           {dati.length === 0 ? (
             <div style={{ textAlign: 'center', color: '#888', padding: 24 }}>Nessun timbro registrato</div>
           ) : (
-            dati.map((d, i) => {
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, alignItems: 'start' }}>
+            {dati.map((d, i) => {
               const nomePunto = mappaPunti[d.id_punto] || d.id_punto;
               const hasFoto = !!d.nome_foto;
               return (
                 <div key={d.id} style={{
-                  border: '1px solid #e5e7eb', borderRadius: 10, marginBottom: 10,
+                  border: '1px solid #e5e7eb', borderRadius: 10,
                   padding: '14px 16px', background: i % 2 === 0 ? '#fafbfc' : '#fff',
                 }}>
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
@@ -367,8 +435,9 @@ export default function ReportViewer({ turnoId, onClose, titolo }: Props) {
                     </div>
                   </div>
                 </div>
-              );
-            })
+                );
+              })}
+            </div>
           )}
         </div>
       </div>
