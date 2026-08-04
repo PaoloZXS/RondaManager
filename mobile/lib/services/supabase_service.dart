@@ -78,4 +78,21 @@ class SupabaseService {
 
     return path;
   }
+
+  /// Legge la scadenza sessione (in minuti) dalla tabella `impostazioni`.
+  /// Se la chiave è assente o in caso di errore, usa il default di 480 minuti (8 ore).
+  Future<int> getSessionTimeoutMinutes() async {
+    if (_client == null) return 480;
+    try {
+      final res = await _client!
+          .from('impostazioni')
+          .select('valore')
+          .eq('chiave', 'session_timeout_minutes')
+          .maybeSingle();
+      if (res == null) return 480;
+      return int.tryParse(res['valore']?.toString() ?? '') ?? 480;
+    } catch (_) {
+      return 480;
+    }
+  }
 }

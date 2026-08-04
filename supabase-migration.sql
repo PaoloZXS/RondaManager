@@ -14,6 +14,7 @@ DROP TABLE IF EXISTS percorsi CASCADE;
 DROP TABLE IF EXISTS guardie CASCADE;
 DROP TABLE IF EXISTS sedi CASCADE;
 DROP TABLE IF EXISTS utenti CASCADE;
+DROP TABLE IF EXISTS impostazioni CASCADE;
 
 -- =============================================
 -- 1. TABELLA SEDI
@@ -118,6 +119,21 @@ INSERT INTO utenti (username, password)
 SELECT 'admin', 'admin123'
 WHERE NOT EXISTS (SELECT 1 FROM utenti WHERE username = 'admin');
 
+-- =============================================
+-- 10. TABELLA IMPOSTAZIONI (impostazioni globali)
+-- =============================================
+CREATE TABLE IF NOT EXISTS impostazioni (
+  chiave TEXT PRIMARY KEY,
+  valore TEXT NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Impostazione di default: scadenza sessione app mobile (minuti)
+INSERT INTO impostazioni (chiave, valore)
+SELECT 'session_timeout_minutes', '480'
+WHERE NOT EXISTS (SELECT 1 FROM impostazioni WHERE chiave = 'session_timeout_minutes');
+
 -- Indici per performance
 CREATE INDEX IF NOT EXISTS idx_turni_guardia ON turni(id_guardia);
 CREATE INDEX IF NOT EXISTS idx_turni_data ON turni(data_inizio DESC);
@@ -149,6 +165,7 @@ ALTER TABLE turni ENABLE ROW LEVEL SECURITY;
 ALTER TABLE telefoni ENABLE ROW LEVEL SECURITY;
 ALTER TABLE guardie_telefoni ENABLE ROW LEVEL SECURITY;
 ALTER TABLE telefoni_percorsi ENABLE ROW LEVEL SECURITY;
+ALTER TABLE impostazioni ENABLE ROW LEVEL SECURITY;
 
 -- Policy: accesso pubblico in lettura per tutti (anon key)
 CREATE POLICY "Accesso pubblico in lettura - sedi"
@@ -169,6 +186,8 @@ CREATE POLICY "Accesso pubblico in lettura - guardie_telefoni"
   ON guardie_telefoni FOR SELECT USING (true);
 CREATE POLICY "Accesso pubblico in lettura - telefoni_percorsi"
   ON telefoni_percorsi FOR SELECT USING (true);
+CREATE POLICY "Accesso pubblico in lettura - impostazioni"
+  ON impostazioni FOR SELECT USING (true);
 
 -- Policy: accesso pubblico in scrittura (per admin)
 CREATE POLICY "Accesso pubblico scrittura - sedi"
@@ -189,3 +208,5 @@ CREATE POLICY "Accesso pubblico scrittura - guardie_telefoni"
   ON guardie_telefoni FOR ALL USING (true);
 CREATE POLICY "Accesso pubblico scrittura - telefoni_percorsi"
   ON telefoni_percorsi FOR ALL USING (true);
+CREATE POLICY "Accesso pubblico scrittura - impostazioni"
+  ON impostazioni FOR ALL USING (true);

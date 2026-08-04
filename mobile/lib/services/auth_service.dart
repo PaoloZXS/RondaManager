@@ -13,6 +13,7 @@ class AuthService {
 
   static const _pinPrefix = 'pin_';
   static const _guardiaCorrenteKey = 'guardia_corrente_id';
+  static const _guardiaLoginTsKey = 'guardia_corrente_ts';
 
   /// Salva il PIN nel KeyStore in modo sicuro.
   Future<void> salvaPin(String guardiaId, String pin) async {
@@ -26,9 +27,14 @@ class AuthService {
     return guardia.pin == hashInput;
   }
 
-  /// Salva l'ID della guardia correntemente loggata.
+  /// Salva l'ID della guardia correntemente loggata,
+  /// insieme al timestamp di inizio sessione (per la scadenza sessione).
   Future<void> setGuardiaCorrente(String guardiaId) async {
     await _secureStorage.write(key: _guardiaCorrenteKey, value: guardiaId);
+    await _secureStorage.write(
+      key: _guardiaLoginTsKey,
+      value: DateTime.now().toIso8601String(),
+    );
   }
 
   /// Recupera l'ID della guardia corrente.
@@ -36,9 +42,17 @@ class AuthService {
     return await _secureStorage.read(key: _guardiaCorrenteKey);
   }
 
+  /// Restituisce il timestamp di inizio sessione della guardia corrente.
+  Future<DateTime?> getSessionTimestamp() async {
+    final ts = await _secureStorage.read(key: _guardiaLoginTsKey);
+    if (ts == null) return null;
+    return DateTime.tryParse(ts);
+  }
+
   /// Rimuove la guardia corrente (logout).
   Future<void> logout() async {
     await _secureStorage.delete(key: _guardiaCorrenteKey);
+    await _secureStorage.delete(key: _guardiaLoginTsKey);
   }
 
   /// Calcola l'SHA-256 del PIN.

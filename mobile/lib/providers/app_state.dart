@@ -81,9 +81,19 @@ class AppState extends ChangeNotifier {
         // Prova a caricare la sessione
         final guardiaId = await _authService.getGuardiaCorrente();
         if (guardiaId != null) {
-          _guardiaCorrente = _configurazione!.guardie
-              .where((g) => g.id == guardiaId)
-              .firstOrNull;
+          // Controllo scadenza sessione all'avvio (minuti configurati in Supabase)
+          final timeoutMinuti = await _supabaseService.getSessionTimeoutMinutes();
+          final loginTimestamp = await _authService.getSessionTimestamp();
+          final sessioneScaduta = loginTimestamp != null &&
+              DateTime.now().difference(loginTimestamp) >
+                  Duration(minutes: timeoutMinuti);
+          if (sessioneScaduta) {
+            await _authService.logout();
+          } else {
+            _guardiaCorrente = _configurazione!.guardie
+                .where((g) => g.id == guardiaId)
+                .firstOrNull;
+          }
         }
 
         // Carica turno corrente

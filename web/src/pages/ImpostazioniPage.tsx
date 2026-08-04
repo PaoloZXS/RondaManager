@@ -20,14 +20,52 @@ export default function ImpostazioniPage() {
   const [deleteUser, setDeleteUser] = useState<any>(null);
   const isSuperuser = localStorage.getItem('is_superuser') === 'true';
 
+  // Impostazioni app (solo admin)
+  const [timeoutMinuti, setTimeoutMinuti] = useState('');
+  const [msgTimeout, setMsgTimeout] = useState('');
+  const [erroreTimeout, setErroreTimeout] = useState('');
+
   useEffect(() => {
-    if (isSuperuser) caricaUtenti();
+    if (isSuperuser) {
+      caricaUtenti();
+      caricaTimeout();
+    }
   }, []);
 
   async function caricaUtenti() {
     const supabase = getSupabaseClient();
     const { data } = await supabase.from('utenti').select('*');
     if (data) setUtenti(data);
+  }
+
+  async function caricaTimeout() {
+    const supabase = getSupabaseClient();
+    const { data } = await supabase
+      .from('impostazioni')
+      .select('valore')
+      .eq('chiave', 'session_timeout_minutes')
+      .maybeSingle();
+    if (data) setTimeoutMinuti(String(data.valore));
+    else setTimeoutMinuti('480');
+  }
+
+  async function salvaTimeout() {
+    setMsgTimeout('');
+    setErroreTimeout('');
+    const minuti = parseInt(timeoutMinuti, 10);
+    if (isNaN(minuti) || minuti < 1) {
+      setErroreTimeout('Inserisci un numero di minuti valido (≥ 1)');
+      return;
+    }
+    const supabase = getSupabaseClient();
+    const { error } = await supabase
+      .from('impostazioni')
+      .upsert({ chiave: 'session_timeout_minutes', valore: String(minuti) }, { onConflict: 'chiave' });
+    if (error) {
+      setErroreTimeout(`Errore salvataggio: ${error.message}`);
+      return;
+    }
+    setMsgTimeout('Impostazione salvata con successo!');
   }
 
   async function creaUtente(e: React.FormEvent) {
@@ -94,10 +132,11 @@ export default function ImpostazioniPage() {
     <div>
       <h1 style={{ marginBottom: 24 }}>Impostazioni Admin</h1>
 
-      {/* Sezione superuser: gestione utenti */}
+      {/* Sezione superuser: gestione utenti + impostazioni app (affiancati) */}
       {isSuperuser && (
-        <div className="card" style={{ maxWidth: 650, marginBottom: 24 }}>
-          <h3>Gestione Utenti</h3>
+        <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start', flexWrap: 'wrap', marginBottom: 24 }}>
+          <div className="card" style={{ flex: 1, minWidth: 320, maxWidth: 650 }}>
+            <h3>Gestione Utenti</h3>
           <p style={{ color: '#666', fontSize: 14, marginBottom: 12 }}>
             Crea nuovi utenti che potranno accedere con password provvisoria <strong>00000</strong>.
           </p>
@@ -151,6 +190,28 @@ export default function ImpostazioniPage() {
               )}
             </tbody>
           </table>
+          </div>
+
+          <div className="card" style={{ flex: 1, minWidth: 320, maxWidth: 650 }}>
+            <h3>Impostazioni App</h3>
+          <p style={{ color: '#666', fontSize: 14, marginBottom: 12 }}>
+            Scadenza sessione guardia (app mobile): dopo questo numero di minuti la sessione
+            scade e richiede un nuovo login.
+          </p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <label htmlFor="timeout-minuti" style={{ fontSize: 14, color: '#374151', fontWeight: 600, whiteSpace: 'nowrap' }}>
+              Timeout Sessione (minuti)
+            </label>
+            <input id="timeout-minuti" type="number" min={1} value={timeoutMinuti}
+              onChange={(e) => setTimeoutMinuti(e.target.value)}
+              style={{ width: 120, padding: 10, border: '1px solid #ddd', borderRadius: 8, fontSize: 14, textAlign: 'center' }} />
+            <button onClick={salvaTimeout} className="btn-primary" style={{ width: 'auto', padding: '10px 24px' }}>
+              💾 Salva
+            </button>
+          </div>
+          {msgTimeout && <p style={{ color: '#38a169', fontSize: 13, margin: '12px 0 0' }}>{msgTimeout}</p>}
+          {erroreTimeout && <p style={{ color: '#e53e3e', fontSize: 13, margin: '12px 0 0' }}>{erroreTimeout}</p>}
+          </div>
         </div>
       )}
 
